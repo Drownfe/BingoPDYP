@@ -1,3 +1,5 @@
+/* ====== ESTILO GENERAL ====== */
+
 body {
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: #0f172a;
@@ -6,7 +8,8 @@ body {
     padding: 0;
 }
 
-header, footer {
+header,
+footer {
     text-align: center;
     padding: 0.75rem;
     background: #020617;
@@ -35,23 +38,111 @@ section {
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.45);
 }
 
+footer small {
+    color: #9ca3af;
+}
+
+/* ====== BOTONES ====== */
+
 button {
     background: #22c55e;
-    border: none;
+    border: 2px solid #16a34a;
     border-radius: 999px;
     padding: 0.5rem 1.5rem;
     color: #022c22;
     font-weight: bold;
     cursor: pointer;
-    margin-bottom: 1rem;
+    margin: 0.75rem 0;
+    transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
 }
 
 button:hover {
-    filter: brightness(1.1);
+    filter: brightness(1.06);
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.6);
+    transform: translateY(-1px);
 }
 
-#last-ball, #admin-last-ball {
+/* ====== BALOTAS / TEXTOS GRANDES ====== */
+
+#last-ball,
+#admin-last-ball {
     font-size: 2rem;
     font-weight: bold;
+    margin-bottom: 0.75rem;
+}
+
+/* ====== CARTÓN BINGO VISUAL ====== */
+
+#card-container {
+    display: inline-block;
+    padding: 0.75rem;
+    border-radius: 0.75rem;
+    background: #020617;
+    border: 1px solid #111827;
+    margin-bottom: 1rem;
+}
+
+.card-header-row {
+    display: grid;
+    grid-template-columns: repeat(5, 3rem);
+    gap: 0.4rem;
+    margin-bottom: 0.4rem;
+    justify-content: center;
+}
+
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 3rem);
+    gap: 0.4rem;
+    justify-content: center;
+}
+
+/* Celda base */
+.cell {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.6rem;
+    background: #020617;
+    border: 1px solid #1f2937;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 1rem;
+    color: #e5e7eb;
+}
+
+/* Encabezado B I N G O */
+.cell.header {
+    background: #111827;
+    border-color: #1f2937;
+    font-size: 1.1rem;
+}
+
+/* Casilla libre del centro */
+.cell.free {
+    font-style: italic;
+    border-style: dashed;
+    opacity: 0.9;
+}
+
+/* Casilla marcada */
+.cell.marked {
+    background: #22c55e;
+    color: #022c22;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.7);
+    transform: scale(1.05);
+}
+
+/* Versión texto de la cartilla (oculta) */
+.card-raw {
+    display: none; /* Si quieres verla, cambia a block */
+}
+
+/* ====== ADMIN ====== */
+
+#players-count {
+    font-size: 1.1rem;
+    font-weight: 600;
     margin-bottom: 0.75rem;
 }

@@ -4,13 +4,34 @@
 {% block content %}
 <section id="player-view">
     <h2>Tu cartón</h2>
-    <pre id="card-text">Esperando cartón...</pre>
+
+    <p id="player-name"></p>
+
+    <!-- Contenedor visual del cartón -->
+    <div id="card-container">
+        <div class="card-header-row">
+            <div class="cell header">B</div>
+            <div class="cell header">I</div>
+            <div class="cell header">N</div>
+            <div class="cell header">G</div>
+            <div class="cell header">O</div>
+        </div>
+        <div id="card-grid" class="card-grid">
+            <!-- JS dibuja aquí las 25 casillas -->
+        </div>
+    </div>
+
+    <!-- Versión texto para depuración (oculta) -->
+    <pre id="card-text" class="card-raw">Esperando cartón...</pre>
 
     <h3>Última balota</h3>
     <div id="last-ball">-</div>
 
     <h3>Historial</h3>
     <div id="history"></div>
+
+    <h3>Estado del juego</h3>
+    <div id="bingo-status">En espera...</div>
 </section>
 
 <script src="{{ url_for('static', filename='js/client.js') }}"></script>
