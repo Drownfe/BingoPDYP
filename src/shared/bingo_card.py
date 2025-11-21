@@ -47,9 +47,7 @@ class BingoCard:
         return grid
 
     def mark_number(self, number: int):
-        """
-        Marca el número en la cartilla si existe.
-        """
+        """Marca el número en la cartilla si existe."""
         for i in range(5):
             for j in range(5):
                 if self.grid[i][j] == number:
@@ -93,3 +91,54 @@ class BingoCard:
                 row_str.append(cell)
             lines.append("  ".join(row_str))
         return "\n".join(lines)
+
+    # 👇 NUEVO: para que el cliente pueda reconstruir la cartilla que manda el servidor
+    def set_from_string(self, card_str: str):
+        """
+        Recibe el texto de la cartilla (como lo envía el servidor)
+        y actualiza self.grid y self.marked para usar esa misma cartilla.
+        """
+        lines = [l for l in card_str.splitlines() if l.strip()]
+        # Primera línea es el header "B I N G O"
+        data_lines = lines[1:6]
+
+        grid = []
+        for line in data_lines:
+            parts = line.split()
+            row = []
+            for p in parts:
+                if p == "*":
+                    row.append(0)
+                else:
+                    row.append(int(p))
+            grid.append(row)
+
+        self.grid = grid
+        # Reiniciar marcados
+        self.marked = [[False] * 5 for _ in range(5)]
+        # Casilla central libre
+        if len(self.marked) == 5 and len(self.marked[0]) == 5:
+            self.marked[2][2] = True
+
+    # 👇 NUEVO: para mostrar bonito la cartilla en consola
+    def show(self):
+        """Imprime la cartilla por consola, marcando los aciertos."""
+        print("   B     I     N     G     O")
+        for i in range(5):
+            row_display = []
+            for j in range(5):
+                val = self.grid[i][j]
+                is_marked = self.marked[i][j]
+
+                if val == 0:
+                    cell = " * "
+                else:
+                    cell = f"{val:2d}"
+
+                if is_marked:
+                    # Entre corchetes si está marcado
+                    row_display.append(f"[{cell}]")
+                else:
+                    row_display.append(f" {cell} ")
+            print(" ".join(row_display))
+        print()
