@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}BingoPDYP{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Estilos -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+
+    <!-- Socket.IO client -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js" integrity="" crossorigin="anonymous"></script>
+</head>
+<body>
+    <header>
+        <h1>BingoPDYP 🎱</h1>
+        <p class="subtitle">Proyecto Final · PD y P</p>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <small>Desarrollado por Juan · PDYP</small>
+    </footer>
+</body>
+</html>

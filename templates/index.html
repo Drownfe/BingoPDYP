@@ -1,0 +1,17 @@
+{% extends "layout.html" %}
+{% block title %}BingoPDYP - Jugador{% endblock %}
+
+{% block content %}
+<section id="player-view">
+    <h2>Tu cartón</h2>
+    <pre id="card-text">Esperando cartón...</pre>
+
+    <h3>Última balota</h3>
+    <div id="last-ball">-</div>
+
+    <h3>Historial</h3>
+    <div id="history"></div>
+</section>
+
+<script src="{{ url_for('static', filename='js/client.js') }}"></script>
+{% endblock %}

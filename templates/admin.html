@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+{% block title %}BingoPDYP - Panel Admin{% endblock %}
+
+{% block content %}
+<section id="admin-view">
+    <h2>Panel del servidor</h2>
+
+    <button id="start-btn">Iniciar juego</button>
+
+    <h3>Última balota</h3>
+    <div id="admin-last-ball">-</div>
+
+    <h3>Historial de balotas</h3>
+    <div id="admin-history"></div>
+
+    <h3>Estado</h3>
+    <div id="admin-status">En espera</div>
+</section>
+
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}
