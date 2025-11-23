@@ -144,5 +144,5 @@ Cuando el admin presiona *Reiniciar juego*:
 
 ---
 
-## 👨‍💻 Desarrollado por Juan + ChatGPT  
+## 👨‍💻 Desarrollado por Juan + Jhennifer 
 Versión estable y final del semestre.
