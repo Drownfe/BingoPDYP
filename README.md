@@ -51,7 +51,7 @@ BingoPDYP/
 
 ### 1️⃣ Clonar el repositorio
 ```
-git clone <TU_REPO_URL>
+git clone https://github.com/Drownfe/BingoPDYP
 cd BingoPDYP
 ```
 
