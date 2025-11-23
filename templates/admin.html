@@ -1,24 +1,39 @@
 {% extends "layout.html" %}
-{% block title %}BingoPDYP - Panel Admin{% endblock %}
+{% block title %}BingoPDYP - Admin{% endblock %}
 
 {% block content %}
 <section id="admin-view">
-    <h2>Panel del servidor</h2>
 
-    <button id="start-btn">Iniciar juego</button>
+    <h2>Panel de Administración</h2>
 
-    <h3>Jugadores conectados</h3>
-    <div id="players-count">0</div>
+    <!-- ========================= -->
+    <!-- BOTONES PRINCIPALES       -->
+    <!-- ========================= -->
+    <div class="admin-buttons">
+        <button id="start-game-btn">Iniciar Juego</button>
+        <button id="reset-game-btn" class="danger">Reiniciar Juego</button>
+    </div>
 
-    <h3>Última balota</h3>
-    <div id="admin-last-ball">-</div>
+    <!-- ========================= -->
+    <!-- ESTADO DEL JUEGO          -->
+    <!-- ========================= -->
+    <h3>Estado del Juego</h3>
+    <div id="admin-game-status">En espera…</div>
 
-    <h3>Historial de balotas</h3>
-    <div id="admin-history"></div>
+    <!-- ========================= -->
+    <!-- ÚLTIMA BALOTA              -->
+    <!-- ========================= -->
+    <h3>Última Balota</h3>
+    <div id="admin-last-ball" class="admin-last-ball">-</div>
 
-    <h3>Estado</h3>
-    <div id="admin-status">En espera</div>
+    <!-- ========================= -->
+    <!-- JUGADORES CONECTADOS      -->
+    <!-- ========================= -->
+    <h3>Jugadores Conectados</h3>
+    <p id="admin-player-count">0 jugadores</p>
+
 </section>
 
 <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+
 {% endblock %}

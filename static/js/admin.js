@@ -1,53 +1,87 @@
-// static/js/admin.js
+/* =======================================================
+   ADMIN.JS — LÓGICA DEL PANEL DE ADMINISTRACIÓN
+   ======================================================= */
 
-// Conexión como ADMIN (role="admin")
-const adminSocket = io({
+const socket = io("/", {
     auth: { role: "admin" }
 });
 
-const startBtn = document.getElementById("start-btn");
-const lastBallDiv = document.getElementById("admin-last-ball");
-const historyDiv = document.getElementById("admin-history");
-const statusDiv = document.getElementById("admin-status");
-const playersCountDiv = document.getElementById("players-count");
+/* =======================================================
+   ELEMENTOS DEL DOM
+   ======================================================= */
 
-// Botón: iniciar juego
+const startBtn = document.getElementById("start-game-btn");
+const resetBtn = document.getElementById("reset-game-btn");
+const statusEl = document.getElementById("admin-game-status");
+const lastBallEl = document.getElementById("admin-last-ball");
+const playerCountEl = document.getElementById("admin-player-count");
+
+/* =======================================================
+   BOTÓN: INICIAR JUEGO
+   ======================================================= */
+
 startBtn.addEventListener("click", () => {
-    adminSocket.emit("start_game");
+    console.log("[ADMIN] Inicio solicitado");
+    socket.emit("admin_start");
 });
 
-// Confirmación de inicio
-adminSocket.on("game_started", () => {
-    statusDiv.textContent = "Juego en curso...";
-    historyDiv.textContent = "";
-    lastBallDiv.textContent = "-";
+/* =======================================================
+   BOTÓN: REINICIAR JUEGO
+   ======================================================= */
+
+resetBtn.addEventListener("click", () => {
+    console.log("[ADMIN] Reinicio solicitado");
+    socket.emit("reset_game");
 });
 
-// Balotas
-adminSocket.on("ball", (data) => {
-    const token = `${data.letter}${data.number}`;
-    lastBallDiv.textContent = token;
+/* =======================================================
+   EVENTO: ACTUALIZACIONES DE ESTADO DEL ADMIN
+   ======================================================= */
 
-    if (historyDiv.textContent.trim().length > 0) {
-        historyDiv.textContent += ", " + token;
+socket.on("admin_status", (data) => {
+    console.log("[ADMIN] Estado recibido", data);
+
+    if (data.running) {
+        statusEl.textContent = "Juego en curso…";
     } else {
-        historyDiv.textContent = token;
+        statusEl.textContent = "En espera…";
+        lastBallEl.textContent = "-";
+    }
+
+    if (data.players !== undefined) {
+        playerCountEl.textContent = `${data.players} jugadores`;
     }
 });
 
-// Ganador
-adminSocket.on("winner", (data) => {
-    const msg = data.message || "¡Hay un ganador!";
-    statusDiv.textContent = msg;
+/* =======================================================
+   EVENTO: NUEVA BALOTA
+   ======================================================= */
+
+socket.on("ball", (data) => {
+    const label = `${data.letter}${data.number}`;
+    lastBallEl.textContent = label;
 });
 
-// Fin del juego
-adminSocket.on("game_over", (data) => {
-    const msg = data.message || "Fin del juego.";
-    statusDiv.textContent = msg;
+/* =======================================================
+   EVENTO: JUEGO FINALIZADO
+   ======================================================= */
+
+socket.on("game_over", (data) => {
+    statusEl.textContent = data.message;
 });
 
-// Conteo de jugadores reales (solo pestañas de /)
-adminSocket.on("players_count", (data) => {
-    playersCountDiv.textContent = data.count ?? 0;
+/* =======================================================
+   EVENTO: GANADOR
+   ======================================================= */
+
+socket.on("winner", (data) => {
+    statusEl.textContent = data.message;
+});
+
+/* =======================================================
+   EVENTO: CAMBIO DE JUGADORES
+   ======================================================= */
+
+socket.on("players_count", (data) => {
+    playerCountEl.textContent = `${data.count} jugadores`;
 });

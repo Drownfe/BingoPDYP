@@ -1,186 +1,170 @@
-// static/js/client.js
+/* =======================================================
+   CLIENT.JS — LÓGICA DEL JUGADOR
+   ======================================================= */
 
-// Conexión como JUGADOR (enviamos role="player")
-const socket = io({
+const socket = io("/", {
     auth: { role: "player" }
 });
 
-// Referencias a elementos
-const cardGridDiv = document.getElementById("card-grid");
-const cardPre = document.getElementById("card-text");
-const lastBallDiv = document.getElementById("last-ball");
-const historyDiv = document.getElementById("history");
-const bingoStatusDiv = document.getElementById("bingo-status");
-const playerNameP = document.getElementById("player-name");
+/* =======================================================
+   ELEMENTOS DEL DOM
+   ======================================================= */
 
-// Matrices internas
-let cardGrid = null;   // [[int]]
-let markedGrid = null; // [[bool]]
+const playerNameEl = document.getElementById("player-name");
+const cardGridEl = document.getElementById("card-grid");
+const lastBallEl = document.getElementById("last-ball");
+const statusEl = document.getElementById("bingo-status");
 
+/* Global board columns */
+const globalColumns = {
+    B: document.getElementById("global-col-B"),
+    I: document.getElementById("global-col-I"),
+    N: document.getElementById("global-col-N"),
+    G: document.getElementById("global-col-G"),
+    O: document.getElementById("global-col-O")
+};
 
-// -----------------------------
-// Helpers
-// -----------------------------
+/* Guardar cartón actual en memoria */
+let currentCard = [];
 
-// Parsea el texto del cartón que viene del servidor a una matriz 5x5 de ints
-function parseCardText(text) {
-    // Limpiamos y separamos líneas
-    const lines = text.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-    if (lines.length < 6) {
-        console.error("Texto de cartón inesperado:", text);
-        return null;
-    }
+/* =======================================================
+   CONSTRUIR CARTÓN DESDE TEXTO
+   ======================================================= */
 
-    // Primera línea es el encabezado B I N G O -> la ignoramos
-    const rowLines = lines.slice(1, 6); // 5 filas
+function drawCardFromText(textGrid) {
+    const lines = textGrid.trim().split("\n").slice(1); // Ignorar encabezado B I N G O
 
-    const grid = [];
+    currentCard = []; // Reiniciar estructura local
+    cardGridEl.innerHTML = ""; // Limpiar UI
 
-    for (let i = 0; i < 5; i++) {
-        const row = rowLines[i];
-        const tokens = row.split(/\s+/); // separa por espacios
-        if (tokens.length < 5) {
-            console.error("Fila inesperada en cartón:", row);
-            return null;
-        }
+    lines.forEach((line, rowIndex) => {
+        const nums = line.split(/\s+/).map(v => (v === "*" ? 0 : parseInt(v)));
+        currentCard.push(nums);
 
-        const rowNums = tokens.slice(0, 5).map(tok => {
-            if (tok === "*" || tok === "X") {
-                return 0; // centro libre
-            }
-            const n = parseInt(tok, 10);
-            return isNaN(n) ? 0 : n;
-        });
-
-        grid.push(rowNums);
-    }
-
-    return grid;
-}
-
-// Dibuja el cartón visual en la grilla
-function renderCard() {
-    if (!cardGrid) return;
-
-    cardGridDiv.innerHTML = "";
-
-    for (let i = 0; i < 5; i++) {
-        for (let j = 0; j < 5; j++) {
-            const val = cardGrid[i][j];
+        nums.forEach(num => {
             const cell = document.createElement("div");
             cell.classList.add("cell");
-            cell.id = `cell-${i}-${j}`;
 
-            if (val === 0 && i === 2 && j === 2) {
-                cell.textContent = "*";
+            if (num === 0) {
                 cell.classList.add("free");
+                cell.textContent = "*";
             } else {
-                cell.textContent = String(val);
+                cell.textContent = num;
             }
 
-            if (markedGrid && markedGrid[i][j]) {
-                cell.classList.add("marked");
-            }
-
-            cardGridDiv.appendChild(cell);
-        }
-    }
-}
-
-// Marca una celda que tenga el número de la balota
-function markNumberOnCard(number) {
-    if (!cardGrid || !markedGrid) return;
-
-    for (let i = 0; i < 5; i++) {
-        for (let j = 0; j < 5; j++) {
-            if (cardGrid[i][j] === number) {
-                markedGrid[i][j] = true;
-                const cell = document.getElementById(`cell-${i}-${j}`);
-                if (cell) {
-                    cell.classList.add("marked");
-                }
-            }
-        }
-    }
-}
-
-
-// -----------------------------
-// Eventos desde el servidor
-// -----------------------------
-
-// Cartón inicial
-socket.on("card", (data) => {
-    // data.name -> "Jugador X"
-    // data.text -> cartón en texto plano
-    playerNameP.textContent = data.name || "";
-    cardPre.textContent = data.text || "";
-
-    // Construimos matriz a partir del texto
-    const grid = parseCardText(data.text || "");
-    if (!grid) {
-        bingoStatusDiv.textContent = "Error generando el cartón.";
-        return;
-    }
-
-    cardGrid = grid;
-
-    // Inicializamos matriz de marcados
-    markedGrid = Array.from({ length: 5 }, () => Array(5).fill(false));
-    // Casilla central libre se marca desde el inicio
-    markedGrid[2][2] = true;
-
-    renderCard();
-    bingoStatusDiv.textContent = "Cartón listo. Esperando balotas...";
-});
-
-// Historial inicial (si entras cuando el juego ya empezó)
-socket.on("history", (data) => {
-    const nums = data.numbers || [];
-
-    const pretty = nums.map((n) => {
-        if (n >= 1 && n <= 15) return "B" + n;
-        if (n >= 16 && n <= 30) return "I" + n;
-        if (n >= 31 && n <= 45) return "N" + n;
-        if (n >= 46 && n <= 60) return "G" + n;
-        return "O" + n;
+            cardGridEl.appendChild(cell);
+        });
     });
+}
 
-    historyDiv.textContent = pretty.join(", ");
+/* =======================================================
+   CONSTRUIR TABLERO GENERAL (1–75)
+   ======================================================= */
 
-    // Marcamos todas las balotas del historial en el cartón
-    nums.forEach((n) => markNumberOnCard(n));
-    renderCard();
-});
+function buildGlobalBoard() {
+    const ranges = {
+        B: [1, 15],
+        I: [16, 30],
+        N: [31, 45],
+        G: [46, 60],
+        O: [61, 75]
+    };
 
-// Nueva balota
-socket.on("ball", (data) => {
-    const token = `${data.letter}${data.number}`;
+    for (let col in ranges) {
+        const [start, end] = ranges[col];
 
-    lastBallDiv.textContent = token;
-
-    if (historyDiv.textContent.trim().length > 0) {
-        historyDiv.textContent += ", " + token;
-    } else {
-        historyDiv.textContent = token;
+        for (let n = start; n <= end; n++) {
+            const div = document.createElement("div");
+            div.classList.add("global-cell");
+            div.dataset.number = n;
+            div.textContent = n;
+            globalColumns[col].appendChild(div);
+        }
     }
+}
 
-    // Marcamos y refrescamos
-    markNumberOnCard(data.number);
-    renderCard();
+buildGlobalBoard();
 
-    bingoStatusDiv.textContent = "Balotas en curso...";
+/* =======================================================
+   MARCAR NÚMERO EN TABLERO GENERAL
+   ======================================================= */
+
+function markOnGlobalBoard(num) {
+    const cell = document.querySelector(`.global-cell[data-number='${num}']`);
+    if (cell) cell.classList.add("marked");
+}
+
+/* =======================================================
+   MARCAR NÚMEROS EN EL CARTÓN DEL JUGADOR
+   ======================================================= */
+
+function markCard(num) {
+    const cardCells = Array.from(cardGridEl.children);
+
+    for (let r = 0; r < 5; r++) {
+        for (let c = 0; c < 5; c++) {
+            if (currentCard[r][c] === num) {
+                const index = r * 5 + c;
+                cardCells[index].classList.add("marked");
+            }
+        }
+    }
+}
+
+/* =======================================================
+   EVENTO: RECIBIR CARTÓN NUEVO
+   ======================================================= */
+
+socket.on("card", (data) => {
+    console.log("[CLIENT] Nuevo cartón recibido");
+    playerNameEl.textContent = data.name;
+    drawCardFromText(data.text);
 });
 
-// Ganador global
-socket.on("winner", (data) => {
-    const msg = data.message || "¡Hay un ganador!";
-    alert(msg);
-    bingoStatusDiv.textContent = msg;
+/* =======================================================
+   EVENTO: BALOTA NUEVA
+   ======================================================= */
+
+socket.on("ball", (data) => {
+    const text = `${data.letter}${data.number}`;
+    lastBallEl.textContent = text;
+
+    markOnGlobalBoard(data.number);
+    markCard(data.number);
 });
 
-// Fin del juego
+/* =======================================================
+   EVENTO: RESET COMPLETO
+   ======================================================= */
+
+socket.on("reset", () => {
+    console.log("[CLIENT] Reset recibido");
+
+    // Reset balota
+    lastBallEl.textContent = "-";
+
+    // Reset tablero general
+    document.querySelectorAll(".global-cell").forEach(c => c.classList.remove("marked"));
+
+    // Reset cartón
+    cardGridEl.innerHTML = "";
+    currentCard = [];
+
+    statusEl.textContent = "En espera…";
+});
+
+/* =======================================================
+   EVENTO: FIN DEL JUEGO
+   ======================================================= */
+
 socket.on("game_over", (data) => {
-    const msg = data.message || "Fin del juego.";
-    bingoStatusDiv.textContent = msg;
+    statusEl.textContent = data.message;
+});
+
+/* =======================================================
+   EVENTO: GANADOR
+   ======================================================= */
+
+socket.on("winner", (data) => {
+    statusEl.textContent = data.message;
 });

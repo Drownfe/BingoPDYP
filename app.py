@@ -1,233 +1,257 @@
-# app.py
-
 import random
 import time
 import threading
-
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit
 
-from src.shared.bingo_card import BingoCard  # tu clase de cartón
-
-
-# =========================
-# CONFIGURACIÓN FLASK
-# =========================
+# ====================================================
+# CONFIGURACIÓN DEL SERVIDOR
+# ====================================================
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "bingo-super-secreto"
+socketio = SocketIO(app, async_mode="threading")
 
-# Usamos hilos normales, más simple en Windows / Python 3.13
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+# ====================================================
+# ESTADO GLOBAL DEL JUEGO
+# ====================================================
 
+players = {}            # sid -> {"name": "Jugador X", "card": BingoCard}
+player_count = 0        # contador incremental
+drawn_numbers = []      # historial de balotas
+balls_remaining = []    # balotas aún por salir
+game_running = False    # juego corriendo?
+winner = None           # ganador actual
+draw_thread = None      # hilo de sorteo
+stop_thread = False     # matar hilo cuando reinicia
 
-# =========================
-# ESTADO GLOBAL
-# =========================
+# ====================================================
+# MODELO DE CARTÓN
+# ====================================================
 
-# sid -> {"card": BingoCard, "name": str}
-players = {}
+class BingoCard:
+    def __init__(self):
+        self.grid = self.generate_grid()
 
-# Balotas ya sorteadas (solo número 1–75)
-drawn_numbers = []
+    def generate_grid(self):
+        grid = [[0]*5 for _ in range(5)]
 
-# ¿Juego corriendo?
-game_running = False
+        ranges = {
+            0: range(1,16),
+            1: range(16,31),
+            2: range(31,46),
+            3: range(46,61),
+            4: range(61,76)
+        }
 
-# Para evitar condiciones de carrera en hilos
-game_lock = threading.Lock()
+        for col in range(5):
+            nums = random.sample(list(ranges[col]), 5)
+            for row in range(5):
+                grid[row][col] = nums[row]
 
-# Para dar nombres amigables: Jugador 1, Jugador 2, ...
-next_player_number = 1
+        grid[2][2] = 0
+        return grid
 
+    def to_string(self):
+        rows = ["B  I  N  G  O"]
+        for row in self.grid:
+            line = ""
+            for n in row:
+                line += "* " if n == 0 else f"{n} "
+            rows.append(line.strip())
+        return "\n".join(rows)
 
-# =========================
-# RUTAS HTTP
-# =========================
+# ====================================================
+# RUTAS
+# ====================================================
 
 @app.route("/")
-def index():
-    """Vista de jugador."""
+def main_page():
     return render_template("index.html")
 
-
 @app.route("/admin")
-def admin():
-    """Vista del panel (profesor/administrador)."""
+def admin_page():
     return render_template("admin.html")
 
-
-# =========================
-# LOOP DEL JUEGO (HILO)
-# =========================
-
-def game_loop():
-    """
-    Hilo que:
-    - Mezcla números 1–75.
-    - Saca una balota cada cierto tiempo.
-    - Marca en todas las cartillas.
-    - Emite la balota a todos.
-    - Si detecta BINGO, anuncia ganador y termina.
-    - Si se acaban las balotas sin ganador, avisa fin del juego.
-    """
-    global game_running, drawn_numbers
-
-    print("[GAME] Iniciando loop de juego...")
-
-    with game_lock:
-        if game_running:
-            print("[GAME] Ya hay un juego corriendo, no inicio otro.")
-            return
-        game_running = True
-        drawn_numbers = []
-
-    all_numbers = list(range(1, 76))
-    random.shuffle(all_numbers)
-
-    winner_name = None
-
-    while True:
-        with game_lock:
-            if not game_running:
-                print("[GAME] game_running = False, termino loop.")
-                break
-
-        if not all_numbers:
-            print("[GAME] No quedan más balotas.")
-            break
-
-        number = all_numbers.pop()
-        drawn_numbers.append(number)
-
-        # Letra de la balota
-        if 1 <= number <= 15:
-            letter = "B"
-        elif 16 <= number <= 30:
-            letter = "I"
-        elif 31 <= number <= 45:
-            letter = "N"
-        elif 46 <= number <= 60:
-            letter = "G"
-        else:
-            letter = "O"
-
-        token = f"{letter}{number}"
-        print(f"[GAME] Balota sorteada: {token}")
-
-        # Marcar número en todas las cartillas
-        for sid, data in players.items():
-            data["card"].mark_number(number)
-
-        # Enviar balota a todos (jugadores + admin)
-        socketio.emit("ball", {"letter": letter, "number": number})
-
-        # Revisar BINGO después de marcar
-        for sid, data in players.items():
-            card = data["card"]
-            name = data.get("name", sid)
-            if card.has_bingo():
-                winner_name = name
-                print(f"[BINGO] ¡{winner_name} tiene BINGO!")
-                with game_lock:
-                    game_running = False
-                # Avisar ganador
-                msg = f"🎉 ¡{winner_name} tiene BINGO! 🎉"
-                socketio.emit("winner", {"message": msg})
-                break
-
-        if not game_running:
-            break
-
-        time.sleep(1.5)
-
-    with game_lock:
-        game_running = False
-
-    # Si nadie ganó, avisamos fin de juego sin ganador
-    if winner_name is None:
-        socketio.emit(
-            "game_over",
-            {"message": "No quedan más balotas. Fin del juego (sin ganador)."}
-        )
-    else:
-        socketio.emit(
-            "game_over",
-            {"message": f"Juego finalizado. Ganador: {winner_name}."}
-        )
-
-    print("[GAME] Loop de juego finalizado.")
-
-
-# =========================
-# EVENTOS SOCKET.IO
-# =========================
+# ====================================================
+# SOCKETS: CONEXIÓN
+# ====================================================
 
 @socketio.on("connect")
 def handle_connect(auth=None):
-    """
-    Se dispara cuando alguien se conecta por WebSocket.
-    auth viene desde el cliente y nos dice si es 'player' o 'admin'.
-    """
-    global next_player_number
-
+    global player_count
     sid = request.sid
-    role = None
-    if isinstance(auth, dict):
-        role = auth.get("role")
 
-    # ADMIN: no se cuenta como jugador, no tiene cartón
+    role = auth["role"] if auth else None
+
+    # ADMIN
     if role == "admin":
-        print(f"[SOCKET] Admin conectado: {sid}")
-        socketio.emit("players_count", {"count": len(players)})
+        print("[ADMIN CONNECTED]", sid)
+        emit("admin_status", {
+            "running": game_running,
+            "drawn": drawn_numbers,
+            "players": len(players)
+        })
         return
 
-    # PLAYER: creamos cartilla y nombre
-    print(f"[SOCKET] Jugador conectado: {sid}")
+    # JUGADOR
+    player_count += 1
+    name = f"Jugador {player_count}"
 
     card = BingoCard()
-    player_name = f"Jugador {next_player_number}"
-    next_player_number += 1
+    players[sid] = {
+        "name": name,
+        "card": card
+    }
 
-    players[sid] = {"card": card, "name": player_name}
+    print(f"[PLAYER CONNECT] {name} ({sid})")
 
-    # Enviamos cartilla como texto (para parsearla en el cliente)
     emit("card", {
-        "name": player_name,
+        "name": name,
         "text": card.to_string()
     })
 
-    # Si hay historial, lo mandamos
-    if drawn_numbers:
-        emit("history", {"numbers": drawn_numbers})
-
-    # Actualizar conteo de jugadores en el panel
     socketio.emit("players_count", {"count": len(players)})
 
+# ====================================================
+# SOCKETS: DESCONEXIÓN
+# ====================================================
 
 @socketio.on("disconnect")
-def handle_disconnect(reason):
-    """Se dispara cuando alguien se desconecta."""
+def handle_disconnect():
     sid = request.sid
-    print(f"[SOCKET] Desconectado: {sid} | reason={reason}")
-
     if sid in players:
+        print("[PLAYER DISCONNECT]", sid)
         del players[sid]
         socketio.emit("players_count", {"count": len(players)})
 
+# ====================================================
+# HILO DEL SORTEO
+# ====================================================
 
-@socketio.on("start_game")
-def handle_start_game():
-    """
-    Lo dispara solo el admin (botón 'Iniciar juego').
-    Crea un hilo con el game_loop.
-    """
-    print("[ADMIN] start_game recibido, creando hilo del juego...")
-    t = threading.Thread(target=game_loop, daemon=True)
-    t.start()
-    socketio.emit("game_started", {})
+def draw_balls():
+    global game_running, winner, stop_thread, balls_remaining
+
+    print("[DRAW] INICIANDO SORTEO...")
+
+    while game_running and not stop_thread and len(balls_remaining) > 0:
+
+        num = balls_remaining.pop(0)
+        drawn_numbers.append(num)
+
+        if 1 <= num <= 15: letter = "B"
+        elif 16 <= num <= 30: letter = "I"
+        elif 31 <= num <= 45: letter = "N"
+        elif 46 <= num <= 60: letter = "G"
+        else: letter = "O"
+
+        token = f"{letter}{num}"
+        print("[DRAW]", token)
+
+        socketio.emit("ball", {"letter": letter, "number": num})
+
+        if winner:
+            print("[DRAW] GANADOR DETECTADO.")
+            return
+
+        time.sleep(2)
+
+    print("[DRAW] FIN DEL SORTEO.")
+    socketio.emit("game_over", {"message": "No quedan más balotas."})
+    game_running = False
+
+# ====================================================
+# ADMIN: INICIAR JUEGO
+# ====================================================
+
+@socketio.on("admin_start")
+def admin_start():
+    global game_running, drawn_numbers, balls_remaining
+    global winner, draw_thread, stop_thread
+
+    if game_running:
+        emit("admin_error", {"message": "Ya está corriendo."})
+        return
+
+    print("[ADMIN] Iniciando juego...")
+
+    drawn_numbers = []
+    winner = None
+    stop_thread = False
+    game_running = True
+    balls_remaining = list(range(1,76))
+    random.shuffle(balls_remaining)
+
+    draw_thread = threading.Thread(target=draw_balls)
+    draw_thread.start()
+
+    socketio.emit("admin_status", {"running": True})
+
+# ====================================================
+# ADMIN: REINICIAR JUEGO
+# ====================================================
+
+@socketio.on("reset_game")
+def reset_game():
+    global game_running, winner, drawn_numbers, balls_remaining, stop_thread
+
+    print("[ADMIN] Reiniciando juego completamente...")
+
+    stop_thread = True
+    game_running = False
+    winner = None
+    drawn_numbers = []
+    balls_remaining = []
+
+    # Primero limpiar UI en todos
+    socketio.emit("reset")
+
+    # Luego enviar nuevos cartones
+    for sid, pdata in players.items():
+        newc = BingoCard()
+        pdata["card"] = newc
+
+        socketio.emit("card", {
+            "name": pdata["name"],
+            "text": newc.to_string()
+        }, room=sid)
+
+    socketio.emit("admin_status", {
+        "running": False,
+        "drawn": [],
+        "players": len(players)
+    })
+
+    print("[ADMIN] Reinicio completo.")
+
+# ====================================================
+# JUGADOR CANTA BINGO
+# ====================================================
+
+@socketio.on("bingo")
+def player_bingo():
+    global winner, game_running
+
+    sid = request.sid
+    if sid not in players:
+        return
+
+    name = players[sid]["name"]
+
+    if not winner:
+        winner = name
+        game_running = False
+        print("[WINNER]", name)
+
+        socketio.emit("winner", {
+            "message": f"🎉 ¡{name} ha ganado el Bingo!"
+        })
+
+        socketio.emit("game_over", {"message": "Fin del juego."})
 
 
-# Punto de entrada
+# ====================================================
+# EJECUCIÓN
+# ====================================================
+
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000)
